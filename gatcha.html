@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=1.5, minimum-scale=0.5">
+  <title>Level Up Clicker</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Clicker">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#1e1a2f">
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: linear-gradient(145deg, #1e1a2f 0%, #2a1f3a 100%);
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; margin: 0; padding: 20px;
+    }
+    .game-container {
+      width: 100%; max-width: 480px;
+      background: rgba(30, 25, 45, 0.9); backdrop-filter: blur(15px);
+      border-radius: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.12);
+      overflow: hidden; display: flex; flex-direction: column;
+      height: 820px; max-height: 96vh; position: relative;
+    }
+    /* Loading Screen */
+    .loading-screen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: #1e1a2f; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #ffd966; font-family: 'Segoe UI', sans-serif;
+    }
+    .loading-screen h1 { font-size: 2rem; margin-bottom: 20px; }
+    .loading-bar { width: 200px; height: 20px; background: #2a1f3a; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+    .loading-fill { height: 100%; background: #b185db; width: 0%; transition: width 0.2s; }
+    .screen { flex: 1; overflow-y: auto; padding: 16px; color: #fff; display: none; flex-direction: column; gap: 14px; scrollbar-width: thin; scrollbar-color: #b57edc #2a1f35; }
+    .screen.active { display: flex; }
+    .home-screen-wrapper { position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .card-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; transition: opacity 1s ease-in-out; opacity: 1; z-index: 0; }
+    .toggle-ui-btn { position: absolute; right: 31px; top: 32px; background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5); color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 30; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+    .home-content { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; padding: 16px; }
+    .top-bar { display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.5); border-radius: 40px; padding: 8px 16px; margin-bottom: 6px; backdrop-filter: blur(10px); position: relative; transition: opacity 0.3s; }
+    .top-bar.hidden { opacity: 0; pointer-events: none; }
+    .settings-btn-top { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; }
+    .points-section { display: flex; flex-direction: column; align-items: center; }
+    .points-badge { background: #ffd966; color: #1e1528; font-weight: bold; padding: 6px 18px; border-radius: 30px; font-size: 1.2rem; box-shadow: 0 0 15px #ffb703; }
+    .stats-mini { display: flex; gap: 10px; font-size: 0.7rem; color: #ddd; margin-top: 4px; }
+    .click-area-full { flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; border-radius: 24px; margin: 8px 0; }
+    .double-points-label { text-align: center; font-size: 1.5rem; font-weight: bold; color: #ffd966; text-shadow: 0 0 20px gold; margin: 5px 0; }
+    .deck-panel { background: rgba(0,0,0,0.4); border-radius: 20px; padding: 12px; transition: opacity 0.3s; }
+    .deck-panel.hidden { opacity: 0; pointer-events: none; }
+    .deck-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px; }
+    .deck-title { font-weight: bold; }
+    .active-tags { font-size: 0.7rem; color: #ffd966; font-weight: bold; background: rgba(0,0,0,0.5); border-radius: 12px; padding: 4px 10px; max-width: 60%; text-align: right; }
+    .double-points-bar { width: 100%; height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
+    .double-points-fill { height: 100%; background: #ffd966; width: 0%; transition: width 0.1s linear; }
+    .pity-counter { text-align: center; font-weight: bold; color: #ffb3b3; margin-bottom: 12px; font-size: 0.95rem; }
+    .banner-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+    .banner-tab { flex: 1; background: #2e2540; border: none; color: #b59bcc; font-weight: bold; padding: 10px 8px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; }
+    .banner-tab.active { background: #b185db; color: white; }
+    .banner-tab.locked { opacity: 0.5; cursor: not-allowed; }
+    .deck-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; }
+    .leader-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .art-grid { display: flex; flex-wrap: nowrap; gap: 10px; justify-content: center; align-items: center; }
+    .character-slot { width: 44px; height: 56px; border-radius: 12px; background: #2a1f35; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px dashed #666; color: #888; cursor: pointer; overflow: hidden; position: relative; }
+    .character-slot.leader-slot { width: 52px; height: 66px; border: 2px solid #ffd966; border-radius: 14px; }
+    .character-slot.locked { border-color: #555; color: #555; cursor: not-allowed; }
+    .character-slot.filled { border: 2px solid #c39eff; border-style: solid; }
+    .character-slot img { width: 100%; height: 100%; object-fit: cover; }
+    .character-slot .slot-border { position: absolute; top: -2px; left: -2px; width: calc(100% + 4px); height: calc(100% + 4px); border-radius: 14px; pointer-events: none; }
+    .character-slot .slot-border.lvl2 { border: 2px solid #4a90d9; }
+    .character-slot .slot-border.lvl3 { border: 2px solid #f0a050; }
+    .leader-label { font-size: 0.7rem; color: #ffd966; margin-top: 4px; font-weight: bold; }
+    .tab-bar { display: flex; background: #191123; border-top: 2px solid #4d3865; padding: 8px 6px; gap: 4px; }
+    .tab-btn { flex: 1; background: transparent; border: none; color: #b59bcc; font-weight: bold; padding: 12px 4px; border-radius: 24px; cursor: pointer; font-size: 0.9rem; display: flex; flex-direction: column; align-items: center; }
+    .tab-btn.active { background: #402f5c; color: white; box-shadow: 0 0 15px #b57edc; }
+    .upgrade-card, .banner-card, .collection-item { background: rgba(255,255,255,0.08); border-radius: 24px; padding: 14px; display: flex; justify-content: space-between; align-items: center; backdrop-filter: blur(8px); flex-wrap: wrap; gap: 8px; }
+    .upgrade-card { margin-bottom: 6px; }
+    .banner-card { flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; position: relative; }
+    .banner-info-btn { position: absolute; top: 8px; right: 8px; background: #555; color: #ccc; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .banner-buttons { display: flex; gap: 40px; justify-content: space-between; width: 100%; padding: 0 10px; }
+    .slot-btns-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; width: 100%; }
+    button { border: none; background: #b185db; color: white; font-weight: bold; border-radius: 30px; padding: 10px 18px; cursor: pointer; }
+    button:active { background: #7d4da3; } button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    .filter-btn { background: #2e2540; padding: 6px 14px; font-size: 0.8rem; } .filter-btn.active { background: #d4a5ff; color: #000; }
+    .rarity-badge { font-weight: bold; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; }
+    .tag-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 8px; background: #5a4a6a; color: #ddd; margin-left: 4px; }
+    .collection-item { gap: 10px; }
+    .collection-img-wrapper { position: relative; flex-shrink: 0; }
+    .collection-img { width: 60px; height: 90px; border-radius: 10px; object-fit: cover; display: block; }
+    .collection-img-border { position: absolute; top: -3px; left: -3px; width: calc(100% + 6px); height: calc(100% + 6px); border-radius: 12px; pointer-events: none; }
+    .collection-img-border.lvl2 { border: 2px solid #4a90d9; }
+    .collection-img-border.lvl3 { border: 2px solid #f0a050; }
+    .favorite-star { font-size: 1.2rem; cursor: pointer; margin-left: 6px; color: #888; transition: 0.2s; }
+    .favorite-star.active { color: #ffd966; }
+    .pull-overlay, .card-view-overlay, .settings-overlay, .info-overlay, .picker-overlay, .banner-info-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .card-view-overlay { cursor: default; }
+    .pull-card, .settings-panel, .info-panel, .picker-panel, .banner-info-panel, .achievements-panel { background: #3a2f4a; border-radius: 24px; padding: 20px; text-align: center; box-shadow: 0 0 40px gold; }
+    .settings-panel { display: flex; flex-direction: column; gap: 12px; min-width: 280px; background: #2a1f3a; }
+    .info-panel, .banner-info-panel, .achievements-panel { max-width: 400px; max-height: 80vh; overflow-y: auto; text-align: left; font-size: 0.9rem; line-height: 1.4; color: #e0d8f0; }
+    .achievements-panel { width: 380px; }
+    .achievement-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+    .achievement-item.achieved { border: 1px solid #ffd966; }
+    .progress-bar { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; background: #b185db; border-radius: 4px; transition: width 0.3s; }
+    .picker-panel { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; padding: 16px; max-width: 90vw; max-height: 85vh; overflow-y: auto; }
+    .picker-card { background: rgba(0,0,0,0.4); border-radius: 16px; padding: 8px; cursor: pointer; text-align: left; width: 140px; transition: 0.2s; display: flex; flex-direction: column; }
+    .picker-card:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }
+    .picker-card img { width: 100%; height: 100px; border-radius: 10px; object-fit: cover; }
+    .picker-card .picker-name { font-size: 0.7rem; font-weight: bold; margin-top: 2px; }
+    .picker-card .picker-info { font-size: 0.65rem; margin-top: 2px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .picker-card .picker-info .rarity-badge { font-size: 0.6rem; padding: 1px 5px; }
+    .picker-card .picker-info .tag-badge { font-size: 0.55rem; padding: 1px 4px; margin-left: 2px; }
+    .info-panel h3 { text-align: center; margin-bottom: 12px; color: #fff; }
+    .info-panel b { color: #ffd966; }
+    .pull-overlay-img { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; border-radius: 0; }
+    .pull-overlay-content { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; background: linear-gradient(transparent 50%, rgba(0,0,0,0.8) 100%); }
+    .pull-overlay-content .name-level { font-size: 1.2rem; font-weight: bold; text-align: left; }
+    .pull-overlay-content .details { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 8px; }
+    .pull-overlay-content .details .rarity-badge { font-size: 1rem; }
+    .pull-overlay-content .details .tag-badge { font-size: 0.8rem; }
+    .card-view-nav { display: flex; align-items: center; justify-content: center; gap: 20px; }
+    .card-view-nav button { font-size: 2rem; background: rgba(255,255,255,0.2); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; transition: 0.2s; flex-shrink: 0; }
+    .card-view-nav button:hover { background: rgba(255,255,255,0.4); }
+    .save-indicator { position: fixed; bottom: 20px; right: 20px; background: #4CAF50; color: white; padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .save-indicator.show { opacity: 1; } .reset-btn { background: #e74c3c; }
+    .banner-selector-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .bannerSelBtn { background: #2e2540; padding: 8px 16px; border-radius: 20px; font-size: 0.85rem; }
+    .bannerSelBtn.active { background: #b185db; }
+    .collection-header { margin-bottom: 12px; }
+    .rarity-filter-row { margin-bottom: 12px; }
+    .collection-stats-row { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  </style>
+</head>
+<body>
+<div id="loadingScreen" class="loading-screen">
+  <h1>Level Up Clicker</h1>
+  <div class="loading-bar"><div id="loadingFill" class="loading-fill" style="width: 0%;"></div></div>
+  <p id="loadingText">Загрузка...</p>
+</div>
+<div class="game-container" style="display:none;">
+  <div id="homeScreen" class="screen active" style="padding:0; overflow:hidden;">
+    <div class="home-screen-wrapper"><div class="card-background" id="cardBackground"></div>
+      <button class="toggle-ui-btn" id="toggleUIBtn">👁️</button>
+      <div class="home-content" id="homeContent">
+        <div class="top-bar" id="topBar"><button class="settings-btn-top" id="settingsTopBtn">⚙️</button><div class="points-section"><div class="points-badge" id="pointsDisplay">✨ 0</div><div class="stats-mini"><span id="clickValueDisplay">🖐️ 1.0/клик</span><span id="clickPercentDisplay">📊 +0%</span><span id="passiveDisplay">⏳ 0.0/сек</span></div></div></div>
+        <div class="click-area-full" id="clickAreaFull"></div>
+        <div id="doublePointsLabel" class="double-points-label" style="display:none;">⚡ Двойные очки!</div>
+        <div class="deck-panel" id="deckPanel"><div class="deck-header"><span class="deck-title">🎴 Активная колода</span><span id="activeTagsDisplay" class="active-tags"></span></div><div id="activeDeckDisplay"></div><div class="double-points-bar" id="doublePointsBarContainer" style="margin-top:8px;"><div class="double-points-fill" id="doublePointsFill"></div></div></div>
+      </div>
+    </div>
+  </div>
+  <div id="upgradeScreen" class="screen"><h3>🔧 Улучшения</h3><div id="upgradeContainer"></div></div>
+  <div id="bannerScreen" class="screen"><h3>🎋 Баннеры</h3><div class="banner-tabs" id="bannerTabs"><button class="banner-tab active" data-tier="0">Обычный</button><button class="banner-tab locked" data-tier="1">Премиум 🔒</button><button class="banner-tab locked" data-tier="2">VIP 🔒</button></div><div class="pity-counter" id="pityDisplay">Жалость 0/50</div><div id="bannerContainer"></div></div>
+  <div id="collectionScreen" class="screen"><h3>📚 Коллекция</h3><div class="banner-selector-row" id="bannerSelector"></div><div class="collection-header" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;"><span id="collectionStats"></span></div><div class="rarity-filter-row"><div class="filter-group" id="rarityFilterGroup"></div></div><div id="collectionList" style="display:flex; flex-direction:column; gap:8px;"></div></div>
+  <div class="tab-bar" id="mainTabBar"><button class="tab-btn active" data-tab="home">🏠<span>Главная</span></button><button class="tab-btn" data-tab="upgrade">📈<span>Улучшения</span></button><button class="tab-btn" data-tab="banner">🎴<span>Баннеры</span></button><button class="tab-btn" data-tab="collection">📖<span>Коллекция</span></button></div>
+</div>
+<div class="save-indicator" id="saveIndicator">💾 Сохранено</div>
+
+<script>
+  // Регистрация Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  (function() {
+    const RARITY_NAMES = { 1: 'R', 2: 'SR', 3: 'SSR', 4: 'UR' };
+    const RARITY_BONUS_BASE = { 1: 2.0, 2: 5.0, 3: 10.0, 4: 18.0 };
+    const LEVEL_MULTIPLIER = { 1: 1.0, 2: 1.25, 3: 1.5, 4: 1.75, 5: 2.0, 6: 2.25, 7: 2.5, 8: 2.75, 9: 3.0 };
+    const UPGRADE_COST = { R: 5000, SR: 10000, SSR: 25000, UR: 50000 };
+    const DEFAULT_MAX_LEVEL = 3;
+
+    function getUpgradeCountNeededForMaxLevel(maxLevel) {
+      const needed = {};
+      for (let i = 2; i <= maxLevel; i++) needed[i] = (i - 1) * 5;
+      return needed;
+    }
+
+    function getTagWeight(tag) {
+      const freq = tagFrequencies[tag] || 1;
+      const maxFreq = Math.max(...Object.values(tagFrequencies), 1);
+      return 25 + (1 - freq / maxFreq) * 25;
+    }
+
+    function calculateRarityByTags(tags, hasUniversal) {
+      if (hasUniversal) return 4;
+      let sum = 0;
+      tags.forEach(tag => {
+        if (!["Универсальный","Копия","Холод","Решимость"].includes(tag)) sum += getTagWeight(tag);
+      });
+      if (sum >= 110) return 4;
+      if (sum >= 73) return 3;
+      if (sum >= 45) return 2;
+      return 1;
+    }
+
+    const banners = {
+      cartoons: { name: "Мультфильмы", characters: [
+        { id: 401, name: "Белая тигрица", img: "images/white_tiger.png", tags: ["Супергерой","Марвел"] },
+        { id: 402, name: "Блитцвульва", img: "images/blitzwolva.png", tags: ["Пришелец","Бен 10"] },
+        { id: 403, name: "Велма Динкли", img: "images/velma.png", tags: ["Детектив"] },
+        { id: 404, name: "Виалет", img: "images/vialet.png", tags: ["Супергерой"] },
+        { id: 405, name: "Гвен Теннисон", img: "images/gwen.png", tags: ["Супергерой"] },
+        { id: 406, name: "Гвен Паук", img: "images/spider_gwen.png", tags: ["Супергерой","Марвел"] },
+        { id: 407, name: "Дикарка", img: "images/dikarka.png", tags: ["Ниндзя","Приключенец"] },
+        { id: 408, name: "Атомная Ева Фута", img: "images/eva_wilkins.png", tags: ["Супергерой","Фута"] },
+        { id: 409, name: "Желе", img: "images/jele.png", tags: ["Пришелец","Бен 10"] },
+        { id: 410, name: "Зои", img: "images/zoe.png", tags: ["Супергерой"] },
+        { id: 411, name: "Ледибаг", img: "images/ladybug.png", tags: ["Супергерой"] },
+        { id: 412, name: "Молния", img: "images/lightning.png", tags: ["Пришелец","Бен 10"] },
+        { id: 413, name: "Пайро", img: "images/pyro.png", tags: ["Пришелец","Бен 10"] },
+        { id: 414, name: "Помни", img: "images/pomni.png", tags: ["Приключенец"] },
+        { id: 415, name: "Призрак", img: "images/ghost.png", tags: ["Пришелец","Ужас","Бен 10"] },
+        { id: 416, name: "Рагата", img: "images/ragata.png", tags: ["Приключенец"] },
+        { id: 417, name: "Челюсти", img: "images/jaws.png", tags: ["Пришелец","Ужас","Бен 10"] },
+        { id: 418, name: "Чистопородная", img: "images/purebred.png", tags: ["Пришелец","Бен 10"] },
+        { id: 419, name: "Эйприл", img: "images/april.png", tags: ["Приключенец","Ниндзя"] },
+        { id: 420, name: "Эластика", img: "images/elastika.png", tags: ["Супергерой"] },
+        { id: 421, name: "Дитто", img: "images/ditto.png", tags: ["Копия","Пришелец","Бен 10","Группа"] },
+        { id: 422, name: "Героиня Х", img: "images/hero_x.png", tags: ["Универсальный","Пришелец","Бен 10"] },
+        { id: 423, name: "Вид сзади (vn simp)", img: "images/vn_simp.png", tags: ["Группа"] },
+        { id: 424, name: "Рейвен", img: "images/raven.png", tags: ["Супергерой","Демон"] },
+        { id: 425, name: "Гвен Фута", img: "images/gwen_futa.png", tags: ["Супергерой","Фута"] },
+        { id: 426, name: "Хелен и Виолет", img: "images/helen_violet.png", tags: ["Супергерой","Группа"] },
+        { id: 427, name: "Арси", img: "images/arcee.png", tags: ["Робот","Пришелец","Солдат"] },
+        { id: 428, name: "Ева (робот)", img: "images/eva_robot.png", tags: ["Робот"] },
+        { id: 429, name: "Чучу и Бонбон", img: "images/mime_dash.png", tags: ["Приключенец","Группа"] },
+        { id: 430, name: "Гвен Стейси", img: "images/gwen_stacy.png", tags: ["Супергерой","Марвел"] },
+        { id: 431, name: "Леди", img: "images/lady.png", tags: ["Приключенец","Охотник"] },
+        { id: 432, name: "Нотт", img: "images/nott.png", tags: ["Приключенец"] },
+        { id: 433, name: "Джестер", img: "images/jester.png", tags: ["Приключенец"] },
+        { id: 434, name: "Шар", img: "images/ball.png", tags: ["Пришелец","Бен 10"] },
+        { id: 435, name: "Хаск", img: "images/husk.png", tags: ["Демон","Хазбин"] },
+        { id: 436, name: "Мевис", img: "images/mavis.png", tags: ["Приключенец"] },
+        { id: 437, name: "Вегги", img: "images/veggy.png", tags: ["Демон","Хазбин"] },
+        { id: 438, name: "Чарли", img: "images/charlie.png", tags: ["Демон","Хазбин"] },
+        { id: 439, name: "Джуди", img: "images/judy.png", tags: ["Приключенец"] },
+        { id: 440, name: "Эмили", img: "images/emily.png", tags: ["Ангел","Хазбин"] },
+        { id: 441, name: "Сера", img: "images/sera.png", tags: ["Ангел","Хазбин"] }
+      ]},
+      anime: { name: "Аниме", characters: [
+        { id: 501, name: "Гото", img: "images/goto.png", tags: ["Солдат"] },
+        { id: 502, name: "Канао Циюри", img: "images/kanao.png", tags: ["Охотник","Мечник"] },
+        { id: 503, name: "Микаса Аккерман", img: "images/mikasa_ack.png", tags: ["Мечник","Солдат"] },
+        { id: 504, name: "Нобара Кугисаки", img: "images/nobara.png", tags: ["Охотник"] },
+        { id: 505, name: "Очако Урарака", img: "images/ochako.png", tags: ["Супергерой"] },
+        { id: 506, name: "Саша Браус", img: "images/sasha.png", tags: ["Солдат","Мечник"] },
+        { id: 507, name: "Шинобу Кочо", img: "images/shinobu.png", tags: ["Охотник","Мечник"], maxLevel: 9 },
+        { id: 508, name: "Аса Митако", img: "images/asa_mitaka.png", tags: ["Демон","Охотник"] },
+        { id: 509, name: "Еруичи Шихоин", img: "images/yoruichi.png", tags: ["Солдат","Ниндзя"] },
+        { id: 510, name: "Мицури Канроджи", img: "images/mitsuri.png", tags: ["Мечник","Охотник"] },
+        { id: 511, name: "Незуко Камадо", img: "images/nezuko.png", tags: ["Охотник","Демон"] },
+        { id: 512, name: "Орихимэ Иноуэ", img: "images/orihime.png", tags: ["Приключенец"] },
+        { id: 513, name: "Резе", img: "images/reze.png", tags: ["Демон"] },
+        { id: 514, name: "Макима", img: "images/makima_anime.png", tags: ["Охотник","Демон"], maxLevel: 9 },
+        { id: 515, name: "Пауэр", img: "images/power_anime.png", tags: ["Охотник","Демон"] },
+        { id: 516, name: "Тия Харрибел", img: "images/tia_harribel.png", tags: ["Мечник","Солдат"] },
+        { id: 517, name: "Нэллиэль", img: "images/nelliel.png", tags: ["Солдат","Мечник"] },
+        { id: 518, name: "Рукия Кучики", img: "images/rukia.png", tags: ["Мечник","Холод","Солдат"] },
+        { id: 519, name: "Сой Фон", img: "images/soi_fon.png", tags: ["Ниндзя","Солдат"] },
+        { id: 520, name: "Нагаторо", img: "images/nagatoro.png", tags: ["Приключенец"] },
+        { id: 521, name: "Студентки (hyouuma)", img: "images/hyouuma.png", tags: ["Приключенец"], maxLevel: 6 },
+        { id: 522, name: "Гавр Гура", img: "images/gawr_gura.png", tags: ["Приключенец"] },
+        { id: 523, name: "Коми", img: "images/komi.png", tags: ["Приключенец"] },
+        { id: 524, name: "Рангику", img: "images/rangiku.png", tags: ["Солдат","Мечник"] },
+        { id: 525, name: "Йор", img: "images/yor.png", tags: ["Ниндзя"] },
+        { id: 526, name: "Нами", img: "images/nami.png", tags: ["Приключенец"] },
+        { id: 527, name: "Джиро", img: "images/jiro.png", tags: ["Супергерой"] },
+        { id: 528, name: "Джолин", img: "images/jolyne.png", tags: ["Приключенец"] },
+        { id: 529, name: "Взрослая Очако", img: "images/ochako_adult.png", tags: ["Супергерой","Приключенец"] },
+        { id: 530, name: "Взрослая Мина", img: "images/mina_adult.png", tags: ["Супергерой","Приключенец"] },
+        { id: 531, name: "Немури", img: "images/nemuri.png", tags: ["Солдат","Ниндзя"] },
+        { id: 532, name: "Жизель", img: "images/giselle.png", tags: ["Солдат"] },
+        { id: 533, name: "Рафталия", img: "images/raftalia.png", tags: ["Приключенец","Мечник"] },
+        { id: 534, name: "Мелти", img: "images/melty.png", tags: ["Приключенец"], maxLevel: 9 },
+        { id: 535, name: "Тацумаки", img: "images/tatsumaki.png", tags: ["Супергерой"] },
+        { id: 536, name: "Ча Ха Ен", img: "images/cha_ha_in.png", tags: ["Охотник","Мечник"] },
+        { id: 537, name: "Мина Ашидо", img: "images/mina_ashido.png", tags: ["Супергерой"], maxLevel: 9 },
+        { id: 538, name: "Аянами Рей", img: "images/ayanami_rei.png", tags: ["Приключенец"] }
+      ]},
+      games: { name: "Игры", characters: [
+        { id: 601, name: "Альфис", img: "images/alphys.png", tags: ["Монстр"] },
+        { id: 602, name: "Грейс", img: "images/grace.png", tags: ["Приключенец","Детектив"] },
+        { id: 603, name: "Ральсей", img: "images/ralsei.png", tags: ["Приключенец","Монстр"] },
+        { id: 604, name: "Сьюзи", img: "images/susie.png", tags: ["Монстр","Ужас"] },
+        { id: 605, name: "Цероба", img: "images/ceroba.png", tags: ["Монстр"] },
+        { id: 606, name: "Ева", img: "images/eva.png", tags: ["Солдат","Мечник","Робот"] },
+        { id: 607, name: "Ноэлль", img: "images/noelle.png", tags: ["Монстр","Холод"] },
+        { id: 608, name: "Таск Менеджер", img: "images/task_manager.png", tags: ["Робот","Монстр"] },
+        { id: 609, name: "Фриск", img: "images/frisk_game.png", tags: ["Приключенец","Решимость"] },
+        { id: 610, name: "Хорнет", img: "images/hornet.png", tags: ["Монстр","Мечник"] },
+        { id: 611, name: "Чара", img: "images/chara.png", tags: ["Приключенец","Решимость"] },
+        { id: 612, name: "2B", img: "images/2b.png", tags: ["Мечник","Робот","Солдат"] },
+        { id: 613, name: "Королева", img: "images/queen.png", tags: ["Робот","Монстр"] },
+        { id: 614, name: "Азриель", img: "images/asriel.png", tags: ["Универсальный","Монстр","Решимость"] },
+        { id: 615, name: "Маэль", img: "images/mael.png", tags: ["Мечник","Универсальный"] },
+        { id: 616, name: "Лили", img: "images/lily.png", tags: ["Приключенец","Робот"] },
+        { id: 617, name: "Мартлет", img: "images/martlet.png", tags: ["Монстр","Приключенец","Солдат"] },
+        { id: 618, name: "Зенит Мартлет", img: "images/zenith_martlet.png", tags: ["Монстр","Солдат"] },
+        { id: 619, name: "Чужая", img: "images/alien.png", tags: ["Пришелец","Ужас"] },
+        { id: 620, name: "Чужая Фута", img: "images/alien_futa.png", tags: ["Пришелец","Ужас","Фута"] },
+        { id: 621, name: "Сая", img: "images/saya.png", tags: ["Монстр"] },
+        { id: 622, name: "Malo", img: "images/malo.png", tags: ["Монстр"] },
+        { id: 623, name: "Смайли Фута", img: "images/smiley_futa.png", tags: ["Робот","Ужас","Фута"] }
+      ]}
+    };
+
+    const allCharacters = Object.values(banners).flatMap(b => b.characters);
+    const tempCounts = {};
+    allCharacters.forEach(c => { if (c.tags) c.tags.forEach(t => { tempCounts[t] = (tempCounts[t] || 0) + 1; }); });
+    const tagFrequencies = {};
+    Object.assign(tagFrequencies, tempCounts);
+
+    allCharacters.forEach(c => {
+      const hasUniversal = c.tags && c.tags.includes("Универсальный");
+      const maxLv = c.maxLevel || DEFAULT_MAX_LEVEL;
+      if (maxLv > 3) c.rarity = 1;
+      else c.rarity = calculateRarityByTags(c.tags || [], hasUniversal);
+    });
+
+    let playerPoints, ownedCharacters, characterLevels, characterUpgradeCounts, activeDeck, leaderSlot;
+    let unlockedSlots, leaderUnlocked, pityCounter, bannerUpgrade;
+    let upgrades, favorites, totalClicks, totalPulls, completedAchievements;
+    let passiveInterval, backgroundInterval;
+    let doublePointsActive, doublePointsTimer, doublePointsProgress;
+    let currentBannerFilter, pullQueue;
+
+    const MAX_DECK_SIZE = 5;
+    const DOUBLE_POINTS_MAX = 125;
+    const PITY_MAX = 50;
+    const SAVE_KEY = 'gacha_game_save_v28';
+
+    function initState() {
+      playerPoints = 0; ownedCharacters = []; characterLevels = {}; characterUpgradeCounts = {};
+      activeDeck = []; leaderSlot = null; unlockedSlots = 0; leaderUnlocked = false;
+      pityCounter = 0; bannerUpgrade = 0;
+      upgrades = {
+        clickPower: { level: 0, baseCost: 50, costMult: 1.20, effect: 1 },
+        passiveIncome: { level: 0, baseCost: 50, costMult: 1.20, effect: 0.5 },
+        doublePoints: { level: 0, baseCost: 250, costMult: 1.20, duration: 10, effectPerLevel: 1 },
+        clickPercent: { level: 0, baseCost: 75, costMult: 1.50, effect: 0.02 }
+      };
+      favorites = {};
+      totalClicks = 0; totalPulls = 0; completedAchievements = {};
+      doublePointsActive = false; doublePointsProgress = 0;
+      if (doublePointsTimer) { clearTimeout(doublePointsTimer); doublePointsTimer = null; }
+      currentBannerFilter = 'cartoons'; pullQueue = [];
+    }
+
+    function saveGame() {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        playerPoints, ownedCharacters, characterLevels, characterUpgradeCounts,
+        activeDeck, leaderSlot, unlockedSlots, leaderUnlocked, pityCounter, bannerUpgrade,
+        upgrades: { clickPower: upgrades.clickPower.level, passiveIncome: upgrades.passiveIncome.level, doublePoints: upgrades.doublePoints.level, clickPercent: upgrades.clickPercent.level },
+        favorites, totalClicks, totalPulls, completedAchievements
+      }));
+      showSaveIndicator();
+    }
+
+    function loadGame() {
+      const s = localStorage.getItem(SAVE_KEY); if (!s) return false;
+      try {
+        const d = JSON.parse(s);
+        playerPoints = d.playerPoints || 0; ownedCharacters = d.ownedCharacters || [];
+        characterLevels = d.characterLevels || {}; characterUpgradeCounts = d.characterUpgradeCounts || {};
+        activeDeck = d.activeDeck || []; leaderSlot = d.leaderSlot || null;
+        unlockedSlots = d.unlockedSlots || 0; leaderUnlocked = d.leaderUnlocked || false;
+        pityCounter = d.pityCounter || 0; bannerUpgrade = d.bannerUpgrade || 0;
+        if (d.upgrades) {
+          upgrades.clickPower.level = d.upgrades.clickPower || 0;
+          upgrades.passiveIncome.level = d.upgrades.passiveIncome || 0;
+          upgrades.doublePoints.level = d.upgrades.doublePoints || 0;
+          upgrades.clickPercent.level = d.upgrades.clickPercent || 0;
+        }
+        favorites = d.favorites || {};
+        totalClicks = d.totalClicks || 0; totalPulls = d.totalPulls || 0;
+        completedAchievements = d.completedAchievements || {};
+        return true;
+      } catch (e) { return false; }
+    }
+
+    function resetGame() {
+      if (confirm('Вы уверены? Весь прогресс будет удалён безвозвратно!')) {
+        localStorage.removeItem(SAVE_KEY); initState(); updateUI(); saveGame();
+        alert('Прогресс сброшен!');
+      }
+    }
+
+    function showSaveIndicator() { const el = document.getElementById('saveIndicator'); el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1500); }
+    function getCharById(id) { return allCharacters.find(c => c.id === id); }
+    function getCharMaxLevel(id) { const c = getCharById(id); return c?.maxLevel || DEFAULT_MAX_LEVEL; }
+    function getCharLevel(id) { return characterLevels[id] || 1; }
+    function getCharEffectiveRarity(id) {
+      const c = getCharById(id); if (!c) return 1;
+      const lv = getCharLevel(id); const maxLv = getCharMaxLevel(id);
+      if (maxLv > 3 && lv >= maxLv) return 4;
+      return c.rarity;
+    }
+    function getCharUpgradeCount(id) { return characterUpgradeCounts[id] || 0; }
+    function getCharImage(char, level) {
+      const maxLv = char.maxLevel || DEFAULT_MAX_LEVEL;
+      if (maxLv > 3) {
+        if (level >= 9 && char.imgLvl9) return char.imgLvl9;
+        if (level >= 8 && char.imgLvl8) return char.imgLvl8;
+        if (level >= 7 && char.imgLvl7) return char.imgLvl7;
+        if (level >= 6 && char.imgLvl6) return char.imgLvl6;
+        if (level >= 5 && char.imgLvl5) return char.imgLvl5;
+        if (level >= 4 && char.imgLvl4) return char.imgLvl4;
+      }
+      if (level >= 3 && char.imgLvl3) return char.imgLvl3;
+      if (level >= 2 && char.imgLvl2) return char.imgLvl2;
+      return char.img;
+    }
+    function getCharBorderClass(id) { const lvl = getCharLevel(id); if (lvl >= 3) return 'lvl3'; if (lvl >= 2) return 'lvl2'; return ''; }
+    function getUpgradeCountNeeded(id, targetLevel) {
+      const maxLv = getCharMaxLevel(id);
+      const needed = getUpgradeCountNeededForMaxLevel(maxLv);
+      return needed[targetLevel] || (targetLevel - 1) * 5;
+    }
+
+    function getTagBonusPercent(tag) {
+      if (["Универсальный","Копия","Холод","Решимость"].includes(tag)) return 0;
+      const freq = tagFrequencies[tag] || 1;
+      const maxFreq = Math.max(...Object.values(tagFrequencies), 1);
+      return 0.25 + (1 - freq / maxFreq) * 0.25;
+    }
+
+    function getActiveTags() {
+      const allActive = [...activeDeck.filter(id => id), leaderSlot].filter(id => id).map(id => getCharById(id)).filter(c => c);
+      const tagCounts = {}; const hasUniversal = allActive.some(c => c.tags && c.tags.includes("Универсальный"));
+      allActive.forEach(c => {
+        if (!c.tags) return; let tags = [...c.tags];
+        if (c.tags.includes("Копия")) { const idx = allActive.indexOf(c); if (idx < allActive.length - 1) { const right = allActive[idx+1]; if (right && right.tags) tags = [...tags, ...right.tags.filter(t => t !== "Копия" && t !== "Универсальный")]; } }
+        tags.forEach(tag => { tagCounts[tag] = (tagCounts[tag] || 0) + 1; });
+      });
+      if (hasUniversal) { Object.keys(tagCounts).forEach(tag => { if (tag !== "Универсальный" && tagCounts[tag] > 0) tagCounts[tag] += 1; }); tagCounts["Универсальный"] = (tagCounts["Универсальный"] || 0); }
+      return tagCounts;
+    }
+
+    function getCharBonus(id) {
+      const char = getCharById(id); if (!char) return 0;
+      const rarity = getCharEffectiveRarity(id);
+      let bonus = (RARITY_BONUS_BASE[rarity] || 1) * (LEVEL_MULTIPLIER[getCharLevel(id)] || 1);
+      const allActiveIds = [...activeDeck.filter(i => i), leaderSlot].filter(i => i);
+      const allActive = allActiveIds.map(i => getCharById(i)).filter(c => c);
+      const hasUniversal = allActive.some(c => c.tags && c.tags.includes("Универсальный"));
+      if (allActiveIds.includes(id) && char.tags) {
+        const tagCounts = getActiveTags();
+        char.tags.forEach(tag => {
+          if (tag === "Решимость") { let cnt = tagCounts[tag] || 0; if (hasUniversal && !char.tags.includes("Универсальный")) cnt += 1; if (cnt >= 2) bonus *= 1.75; }
+          else if (!["Универсальный","Копия","Холод"].includes(tag)) { const cnt = tagCounts[tag] || 1; if (cnt >= 2) bonus *= (1 + (cnt - 1) * getTagBonusPercent(tag)); }
+        });
+      }
+      if (leaderSlot === id) bonus *= 2;
+      return Math.min(bonus, 20);
+    }
+
+    function getColdBonus() { return 1 + (getActiveTags()["Холод"] || 0) * 0.3; }
+    function calculateClickValue() {
+      let base = 1 + upgrades.clickPower.level * upgrades.clickPower.effect;
+      activeDeck.forEach(id => { if (id) base += getCharBonus(id); });
+      if (leaderSlot) base += getCharBonus(leaderSlot);
+      base *= (1 + upgrades.clickPercent.level * upgrades.clickPercent.effect);
+      return base * (doublePointsActive ? 2 : 1);
+    }
+    function calculatePassivePerSecond() { let base = upgrades.passiveIncome.level * upgrades.passiveIncome.effect; activeDeck.forEach(id => { if (id) base += getCharBonus(id) * 0.3; }); if (leaderSlot) base += getCharBonus(leaderSlot) * 0.3; return base * (doublePointsActive ? 2 : 1); }
+    function getUpgradeCost(type) { return Math.floor(upgrades[type].baseCost * Math.pow(upgrades[type].costMult, upgrades[type].level)); }
+    function getSlotCost(index) { return [100, 1000, 5000, 10000, 25000][index]; }
+    function getPullCost(count) { const base = count === 1 ? 100 : 1000; return bannerUpgrade === 0 ? base : bannerUpgrade === 1 ? base * 5 : base * 10; }
+    function addPoints(amount) { playerPoints += amount; updateUI(); }
+    function spendPoints(amount) { if (playerPoints >= amount) { playerPoints -= amount; updateUI(); saveGame(); return true; } return false; }
+    function getBannerRates() { if (bannerUpgrade === 0) return { R: 85, SR: 14, SSR: 1, UR: 0 }; if (bannerUpgrade === 1) return { R: 70, SR: 24, SSR: 5, UR: 1 }; return { R: 50, SR: 35, SSR: 10, UR: 5 }; }
+
+    const achievements = [
+      { id: "coll_10", name: "Начинающий коллекционер", desc: "Собрать 10 карт", current: () => ownedCharacters.length, target: 10, reward: 1000 },
+      { id: "coll_25", name: "Опытный коллекционер", desc: "Собрать 25 карт", current: () => ownedCharacters.length, target: 25, reward: 5000 },
+      { id: "coll_50", name: "Мастер коллекции", desc: "Собрать 50 карт", current: () => ownedCharacters.length, target: 50, reward: 25000 },
+      { id: "coll_full", name: "Полный баннер", desc: "Собрать все карты одного баннера", current: () => Math.max(...Object.values(banners).map(b => b.characters.filter(c => ownedCharacters.includes(c.id)).length)), target: Math.max(...Object.values(banners).map(b => b.characters.length)), reward: 10000 },
+      { id: "coll_all", name: "Мультивселенная", desc: "Собрать все карты", current: () => ownedCharacters.length, target: allCharacters.length, reward: 100000 },
+      { id: "rare_sr", name: "Первый SR", desc: "Получить первую SR-карту", current: () => ownedCharacters.some(id => { const c = getCharById(id); return c && c.rarity >= 2; }) ? 1 : 0, target: 1, reward: 500 },
+      { id: "rare_ssr", name: "Первый SSR", desc: "Получить первую SSR-карту", current: () => ownedCharacters.some(id => { const c = getCharById(id); return c && c.rarity >= 3; }) ? 1 : 0, target: 1, reward: 2000 },
+      { id: "rare_ur", name: "Первый UR", desc: "Получить первую UR-карту", current: () => ownedCharacters.some(id => getCharEffectiveRarity(id) >= 4) ? 1 : 0, target: 1, reward: 10000 },
+      { id: "rare_5ssr", name: "Охотник за редкостями", desc: "Иметь 5+ SSR-карт", current: () => ownedCharacters.filter(id => { const c = getCharById(id); return c && c.rarity >= 3; }).length, target: 5, reward: 15000 },
+      { id: "rare_3ur", name: "Легендарный", desc: "Иметь 3+ UR-карты", current: () => ownedCharacters.filter(id => getCharEffectiveRarity(id) >= 4).length, target: 3, reward: 30000 },
+      { id: "rare_5ur", name: "Счастливчик", desc: "Получить 5+ UR-карт", current: () => ownedCharacters.filter(id => getCharEffectiveRarity(id) >= 4).length, target: 5, reward: 50000 },
+      { id: "lvl_2", name: "Первое улучшение", desc: "Улучшить любую карту до 2 уровня", current: () => Object.values(characterLevels).some(l => l >= 2) ? 1 : 0, target: 1, reward: 1000 },
+      { id: "lvl_3", name: "Сила трёх", desc: "Улучшить любую карту до 3 уровня", current: () => Object.values(characterLevels).some(l => l >= 3) ? 1 : 0, target: 1, reward: 5000 },
+      { id: "lvl_max", name: "Максимальная мощь", desc: "Улучшить карту до макс. уровня", current: () => ownedCharacters.some(id => getCharLevel(id) >= getCharMaxLevel(id)) ? 1 : 0, target: 1, reward: 15000 },
+      { id: "lvl_10", name: "Мастер прокачки", desc: "Улучшить 10 карт до 3+ уровня", current: () => Object.values(characterLevels).filter(l => l >= 3).length, target: 10, reward: 25000 },
+      { id: "pts_1k", name: "Первая тысяча", desc: "Накопить 1 000 очков", current: () => Math.min(playerPoints, 1000), target: 1000, reward: 500 },
+      { id: "pts_100k", name: "Капитал", desc: "Накопить 100 000 очков", current: () => Math.min(playerPoints, 100000), target: 100000, reward: 10000 },
+      { id: "pts_1m", name: "Миллионер", desc: "Накопить 1 000 000 очков", current: () => Math.min(playerPoints, 1000000), target: 1000000, reward: 50000 },
+      { id: "click_1k", name: "Кликер", desc: "Сделать 1 000 кликов", current: () => Math.min(totalClicks, 1000), target: 1000, reward: 500 },
+      { id: "click_100k", name: "Неутомимый", desc: "Сделать 100 000 кликов", current: () => Math.min(totalClicks, 100000), target: 100000, reward: 25000 },
+      { id: "tag_synergy", name: "Синергия", desc: "Активировать 2+ одинаковых тега", current: () => Object.values(getActiveTags()).some(c => c >= 2) ? 1 : 0, target: 1, reward: 2000 },
+      { id: "tag_master", name: "Мастер тегов", desc: "Активировать 5+ тегов одновременно", current: () => Math.min(Object.keys(getActiveTags()).filter(t => getActiveTags()[t] >= 2).length, 5), target: 5, reward: 10000 },
+      { id: "pull_first", name: "Первая крутка", desc: "Сделать первую крутку", current: () => totalPulls >= 1 ? 1 : 0, target: 1, reward: 100 },
+      { id: "pull_100", name: "Крутой", desc: "Сделать 100 круток", current: () => Math.min(totalPulls, 100), target: 100, reward: 5000 },
+      { id: "upg_first", name: "Прогресс", desc: "Купить первое улучшение", current: () => (upgrades.clickPower.level + upgrades.passiveIncome.level + upgrades.doublePoints.level + upgrades.clickPercent.level) > 0 ? 1 : 0, target: 1, reward: 200 },
+      { id: "upg_50", name: "Инвестор", desc: "Купить 50 улучшений", current: () => Math.min(upgrades.clickPower.level + upgrades.passiveIncome.level + upgrades.doublePoints.level + upgrades.clickPercent.level, 50), target: 50, reward: 25000 },
+      { id: "slots_all", name: "Все слоты открыты", desc: "Открыть все 5 слотов колоды", current: () => unlockedSlots >= 5 ? 1 : 0, target: 1, reward: 5000 },
+      { id: "leader", name: "Лидер", desc: "Открыть слот Лидера", current: () => leaderUnlocked ? 1 : 0, target: 1, reward: 3000 },
+      { id: "all_done", name: "Полное завершение", desc: "Получить все остальные достижения", current: () => achievements.filter(a => a.id !== "all_done" && completedAchievements[a.id]).length, target: 27, reward: 200000 }
+    ];
+
+    function checkAchievements() {
+      achievements.forEach(a => {
+        if (!completedAchievements[a.id] && a.current() >= a.target) {
+          completedAchievements[a.id] = true;
+          playerPoints += a.reward;
+        }
+      });
+    }
+
+    function processPullResult(char, isNew) {
+      if (isNew) ownedCharacters.push(char.id);
+      else if (getCharLevel(char.id) < getCharMaxLevel(char.id)) characterUpgradeCounts[char.id] = (characterUpgradeCounts[char.id] || 0) + 1;
+      if (char.rarity >= 3) pityCounter = 0;
+      else { pityCounter++; if (pityCounter >= PITY_MAX) { pityCounter = 0; const sp = allCharacters.filter(c => c.rarity === 3 && !ownedCharacters.includes(c.id)); if (sp.length) { const sc = sp[Math.floor(Math.random()*sp.length)]; pullQueue.push({ char: sc, isNew: true }); processPullResult(sc, true); } } }
+      document.getElementById('pityDisplay').innerText = `Жалость ${pityCounter}/${PITY_MAX}`;
+      checkAchievements();
+    }
+
+    function showPullOverlay() {
+      if (pullQueue.length === 0) { updateUI(); saveGame(); return; }
+      const { char, isNew } = pullQueue.shift(); const level = getCharLevel(char.id);
+      const overlay = document.createElement('div'); overlay.className = 'pull-overlay'; overlay.style.background = 'transparent';
+      overlay.innerHTML = `<div style="position:relative;width:100%;height:100%;max-width:480px;margin:0 auto;"><img src="${getCharImage(char, level)}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;"><div class="pull-overlay-content"><div class="name-level">${char.name} Ур.${level}</div><div class="details"><span class="rarity-badge">${RARITY_NAMES[getCharEffectiveRarity(char.id)]}</span><span>${char.tags ? char.tags.map(t => `<span class="tag-badge">${t}</span>`).join(' ') : ''}</span></div>${isNew ? '<p style="color:#ffd966;text-align:center;">🆕 Новая карта!</p>' : '<p style="color:#aaa;text-align:center;">+1 к улучшению</p>'}<p style="color:#aaa;text-align:center;">Нажмите чтобы продолжить</p></div></div>`;
+      document.body.appendChild(overlay); overlay.addEventListener('click', () => { overlay.remove(); showPullOverlay(); });
+    }
+
+    function performPull(bannerKey, count) {
+      if (!spendPoints(getPullCost(count))) { alert('Недостаточно очков!'); return; }
+      totalPulls += count === 10 ? 10 : 1;
+      const banner = banners[bannerKey];
+      for (let i = 0; i < (count === 10 ? 11 : count); i++) { const char = rollFromBanner(banner); if (char) { pullQueue.push({ char, isNew: !ownedCharacters.includes(char.id) }); processPullResult(char, !ownedCharacters.includes(char.id)); } }
+      startBackgroundRotation(); showPullOverlay(); saveGame();
+    }
+
+    function rollFromBanner(banner) {
+      const rates = getBannerRates(); const r = Math.random() * 100;
+      let target = r < rates.UR ? 4 : r < rates.UR + rates.SSR ? 3 : r < rates.UR + rates.SSR + rates.SR ? 2 : 1;
+      let pool = banner.characters.filter(c => c.rarity === target);
+      for (let t = target; t <= 4; t++) { pool = banner.characters.filter(c => c.rarity === t); if (pool.length) break; }
+      if (!pool.length) pool = banner.characters;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function cycleBackground() { if (!ownedCharacters.length) { document.getElementById('cardBackground').style.backgroundImage = ''; return; } const char = getCharById(ownedCharacters[Math.floor(Math.random()*ownedCharacters.length)]); if (char) document.getElementById('cardBackground').style.backgroundImage = `url(${getCharImage(char, getCharLevel(char.id))})`; }
+    function startBackgroundRotation() { if (backgroundInterval) clearInterval(backgroundInterval); cycleBackground(); backgroundInterval = setInterval(cycleBackground, 10000); }
+    function getDoublePointsDuration() { return (upgrades.doublePoints.duration + upgrades.doublePoints.level * upgrades.doublePoints.effectPerLevel) * getColdBonus(); }
+
+    function activateDoublePoints() {
+      if (doublePointsActive || upgrades.doublePoints.level === 0) return;
+      doublePointsActive = true; doublePointsProgress = DOUBLE_POINTS_MAX;
+      document.getElementById('doublePointsLabel').style.display = 'block';
+      const dur = getDoublePointsDuration() * 1000;
+      const startTime = Date.now();
+      if (doublePointsTimer) clearInterval(doublePointsTimer);
+      doublePointsTimer = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, dur - elapsed);
+        doublePointsProgress = (remaining / dur) * DOUBLE_POINTS_MAX;
+        document.getElementById('doublePointsFill').style.width = `${(doublePointsProgress/DOUBLE_POINTS_MAX)*100}%`;
+        if (remaining <= 0) {
+          clearInterval(doublePointsTimer); doublePointsTimer = null;
+          doublePointsActive = false; doublePointsProgress = 0;
+          document.getElementById('doublePointsLabel').style.display = 'none';
+          updateUI();
+        }
+      }, 100);
+      updateUI();
+    }
+
+    function handleClick() {
+      totalClicks++;
+      addPoints(calculateClickValue());
+      if (upgrades.doublePoints.level > 0 && !doublePointsActive) { doublePointsProgress = Math.min(DOUBLE_POINTS_MAX, doublePointsProgress + 1); if (doublePointsProgress >= DOUBLE_POINTS_MAX) activateDoublePoints(); }
+      checkAchievements();
+    }
+
+    function showCardPicker(callback) {
+      const overlay = document.createElement('div'); overlay.className = 'picker-overlay';
+      const usedIds = new Set([...activeDeck.filter(id => id), leaderSlot].filter(id => id));
+      let sorted = ownedCharacters.map(id => getCharById(id)).filter(c => c && !usedIds.has(c.id));
+      sorted.sort((a, b) => {
+        const aFav = favorites[a.id] ? 1 : 0; const bFav = favorites[b.id] ? 1 : 0;
+        if (aFav !== bFav) return bFav - aFav;
+        return b.rarity - a.rarity || a.name.localeCompare(b.name);
+      });
+      let html = '<div class="picker-panel">';
+      sorted.forEach(c => { const level = getCharLevel(c.id), border = getCharBorderClass(c.id); html += `<div class="picker-card" data-id="${c.id}"><div style="position:relative;"><img src="${getCharImage(c, level)}" alt="${c.name}">${border ? `<div class="collection-img-border ${border}" style="border-radius:12px;"></div>` : ''}</div><div class="picker-name">${c.name} Ур.${level}</div><div class="picker-info"><span class="rarity-badge">${RARITY_NAMES[getCharEffectiveRarity(c.id)]}</span><span>${c.tags ? c.tags.map(t => `<span class="tag-badge">${t}</span>`).join('') : ''}</span>${favorites[c.id] ? ' ⭐' : ''}</div></div>`; });
+      html += '</div><button id="cancelPick" style="margin-top:10px;">Отмена</button>';
+      overlay.innerHTML = html; document.body.appendChild(overlay);
+      overlay.querySelectorAll('.picker-card').forEach(el => el.addEventListener('click', () => { const id = parseInt(el.dataset.id); overlay.remove(); callback(id); }));
+      overlay.querySelector('#cancelPick').onclick = () => overlay.remove();
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function promptAddToSlot(slot) { showCardPicker((id) => { if (activeDeck.includes(id) || leaderSlot === id) { alert("Уже в колоде."); return; } activeDeck[slot] = id; updateUI(); saveGame(); }); }
+    function promptForLeader() { showCardPicker((id) => { if (activeDeck.includes(id)) { alert("Уже в колоде."); return; } leaderSlot = id; updateUI(); saveGame(); }); }
+
+    function showCardViewer(charId) {
+      const char = getCharById(charId); if (!char || !ownedCharacters.includes(charId)) return;
+      const maxLevel = getCharMaxLevel(charId); const currentMaxLevel = getCharLevel(charId); let currentViewLevel = currentMaxLevel;
+      const overlay = document.createElement('div'); overlay.className = 'card-view-overlay';
+      function updateView() { overlay.querySelector('.view-card').innerHTML = `<img src="${getCharImage(char, currentViewLevel)}" alt="${char.name}" style="width:180px;height:180px;object-fit:cover;border-radius:18px;"><h3>${char.name} Ур.${currentViewLevel}</h3><p>${RARITY_NAMES[getCharEffectiveRarity(charId)]}</p>${char.tags ? '<p style="font-size:0.8rem;">Теги: ' + char.tags.map(t => `<span class="tag-badge">${t}</span>`).join(' ') + '</p>' : ''}<p style="font-size:0.8rem;color:#aaa;">Бонус: ×${LEVEL_MULTIPLIER[currentViewLevel]}</p>`; overlay.querySelector('#prevLevelBtn').style.visibility = currentViewLevel > 1 ? 'visible' : 'hidden'; overlay.querySelector('#nextLevelBtn').style.visibility = currentViewLevel < currentMaxLevel ? 'visible' : 'hidden'; }
+      overlay.innerHTML = `<div class="card-view-nav"><button id="prevLevelBtn">◀</button><div class="pull-card view-card"></div><button id="nextLevelBtn">▶</button></div><p style="color:#aaa;margin-top:10px;">Нажмите вне карточки чтобы закрыть</p>`;
+      document.body.appendChild(overlay); updateView();
+      overlay.querySelector('#prevLevelBtn').addEventListener('click', (e) => { e.stopPropagation(); if (currentViewLevel > 1) { currentViewLevel--; updateView(); } });
+      overlay.querySelector('#nextLevelBtn').addEventListener('click', (e) => { e.stopPropagation(); if (currentViewLevel < currentMaxLevel) { currentViewLevel++; updateView(); } });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function showBannerInfo(bannerKey) {
+      const banner = banners[bannerKey]; if (!banner) return; const rates = getBannerRates();
+      const overlay = document.createElement('div'); overlay.className = 'banner-info-overlay';
+      let html = `<div class="banner-info-panel"><h3>${banner.name} — Шансы</h3><p>R: ${rates.R}% | SR: ${rates.SR}% | SSR: ${rates.SSR}% | UR: ${rates.UR}%</p><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">`;
+      banner.characters.sort((a,b)=>a.rarity-b.rarity).forEach(c => { html += `<div style="background:rgba(0,0,0,0.3);padding:6px;border-radius:8px;font-size:0.8rem;">${c.name} <span class="rarity-badge">${RARITY_NAMES[c.rarity]}</span></div>`; });
+      html += '</div><button id="closeBannerInfo" style="margin-top:12px;">Закрыть</button></div>';
+      overlay.innerHTML = html; document.body.appendChild(overlay);
+      overlay.querySelector('#closeBannerInfo').onclick = () => overlay.remove();
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function showTagInfo() {
+      const overlay = document.createElement('div'); overlay.className = 'info-overlay'; const activeTagCounts = getActiveTags();
+      let html = `<div class="info-panel"><h3>📖 О тегах</h3><p style="margin-bottom:8px;">Бонус за тег зависит от его редкости в коллекции (25%–50% за каждую карту с таким же тегом в активной колоде).</p><p style="margin-bottom:8px;font-size:0.8rem;color:#bbb;">⚠️ Копия не копирует тег «Универсальный».</p>`;
+      const special = { "Решимость": "+75% к своим показателям, если есть ещё карта с Решимостью (Универсальный считается)", "Холод": "+30% к длительности Двойных очков за каждую карту", "Универсальный": "Попадает под условия активации тегов других карт в колоде", "Копия": "Копирует теги карты справа (кроме Универсального)" };
+      Object.entries(tagFrequencies).sort((a,b)=>b[1]-a[1]).forEach(([tag, freq]) => { const cnt = activeTagCounts[tag] || 0; if (special[tag]) html += `<div style="margin-bottom:6px;"><b>${tag}</b> (в игре: ${freq}, в колоде: ${cnt}) — ${special[tag]}</div>`; else html += `<div style="margin-bottom:6px;"><b>${tag}</b> (в игре: ${freq}, в колоде: ${cnt}) — +${Math.round(getTagBonusPercent(tag)*100)}% за каждую карту с таким же тегом в активной колоде</div>`; });
+      html += '<button id="closeTagInfo" style="margin-top:12px;">Закрыть</button></div>';
+      overlay.innerHTML = html; document.body.appendChild(overlay);
+      overlay.querySelector('#closeTagInfo').onclick = () => overlay.remove();
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function showAchievements() {
+      const overlay = document.createElement('div'); overlay.className = 'info-overlay';
+      let html = `<div class="achievements-panel"><h3>🏆 Достижения</h3>`;
+      const allDone = achievements.filter(a => a.id !== "all_done").every(a => completedAchievements[a.id]);
+      const totalDone = achievements.filter(a => completedAchievements[a.id]).length;
+      html += `<p style="text-align:center;margin-bottom:10px;">Выполнено: ${totalDone}/${achievements.length}</p>`;
+      if (allDone && !completedAchievements["all_done"]) html += `<p style="text-align:center;color:#ffd966;">🎉 Все достижения получены! Разблокировано «Полное завершение»!</p>`;
+      if (completedAchievements["all_done"]) html += `<p style="text-align:center;color:#ffd966;">👑 Полное завершение!</p>`;
+      achievements.forEach(a => {
+        const done = completedAchievements[a.id];
+        const cur = Math.min(a.current(), a.target);
+        const progress = a.target > 0 ? cur / a.target : 0;
+        const progressText = a.target <= 1 ? (done ? '✅' : '❌') : `${cur}/${a.target}`;
+        html += `<div class="achievement-item ${done ? 'achieved' : ''}">
+          <b>${a.name}</b> — ${a.desc}
+          <div style="font-size:0.75rem;color:#aaa;">Прогресс: ${progressText} | Награда: ${a.reward.toLocaleString()} очков</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${progress*100}%"></div></div>
+        </div>`;
+      });
+      html += `<button id="closeAchievements" style="margin-top:12px;">Закрыть</button></div>`;
+      overlay.innerHTML = html; document.body.appendChild(overlay);
+      overlay.querySelector('#closeAchievements').onclick = () => overlay.remove();
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function showSettings() {
+      const overlay = document.createElement('div'); overlay.className = 'settings-overlay';
+      overlay.innerHTML = `<div class="settings-panel"><h3>⚙️ Настройки</h3>
+        <button id="add5000">➕ Добавить 5000 очков</button>
+        <button id="sub5000">➖ Убрать 5000 очков</button>
+        <button id="openGallery">🖼️ Открыть галерею</button>
+        <button id="showTagInfo">📖 О тегах</button>
+        <button id="showAchievements">🏆 Достижения</button>
+        <button class="reset-btn" id="resetFromSettings">🗑️ Сбросить прогресс</button>
+        <button id="closeSettings">Закрыть</button></div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#add5000').onclick = () => { playerPoints += 5000; updateUI(); saveGame(); overlay.remove(); };
+      overlay.querySelector('#sub5000').onclick = () => { playerPoints = Math.max(0, playerPoints - 5000); updateUI(); saveGame(); overlay.remove(); };
+      overlay.querySelector('#openGallery').onclick = () => { allCharacters.forEach(c => { if (!ownedCharacters.includes(c.id)) ownedCharacters.push(c.id); characterLevels[c.id] = getCharMaxLevel(c.id); characterUpgradeCounts[c.id] = 0; }); updateUI(); saveGame(); overlay.remove(); };
+      overlay.querySelector('#showTagInfo').onclick = () => { overlay.remove(); showTagInfo(); };
+      overlay.querySelector('#showAchievements').onclick = () => { overlay.remove(); showAchievements(); };
+      overlay.querySelector('#resetFromSettings').onclick = () => { overlay.remove(); resetGame(); };
+      overlay.querySelector('#closeSettings').onclick = () => overlay.remove();
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    function updateUI() {
+      document.getElementById('pointsDisplay').innerText = `✨ ${Math.floor(playerPoints)}`;
+      document.getElementById('clickValueDisplay').innerText = `🖐️ ${calculateClickValue().toFixed(1)}/клик`;
+      document.getElementById('clickPercentDisplay').innerText = `📊 +${(upgrades.clickPercent.level * 2).toFixed(0)}%`;
+      document.getElementById('passiveDisplay').innerText = `⏳ ${calculatePassivePerSecond().toFixed(1)}/сек`;
+      document.getElementById('doublePointsFill').style.width = `${(doublePointsProgress/DOUBLE_POINTS_MAX)*100}%`;
+
+      const deckDiv = document.getElementById('activeDeckDisplay');
+      let html = '<div class="deck-row"><div class="leader-col">';
+      const lc = getCharById(leaderSlot);
+      html += leaderUnlocked ? (leaderSlot ? `<div class="character-slot filled leader-slot" id="leaderSlot"><img src="${lc?.img}" alt="">${getCharBorderClass(leaderSlot)?`<div class="slot-border ${getCharBorderClass(leaderSlot)}"></div>`:''}</div>` : '<div class="character-slot leader-slot" id="leaderSlot">👑</div>') : '<div class="character-slot leader-slot locked">🔒</div>';
+      html += '<span class="leader-label">Лидер</span></div><div class="art-grid">';
+      for (let i = 0; i < MAX_DECK_SIZE; i++) {
+        if (i < unlockedSlots) { const cid = activeDeck[i]; const c = getCharById(cid); html += cid ? `<div class="character-slot filled" data-slot="${i}"><img src="${c?.img}" alt="">${getCharBorderClass(cid)?`<div class="slot-border ${getCharBorderClass(cid)}"></div>`:''}</div>` : `<div class="character-slot" data-slot="${i}">➕</div>`; }
+        else html += '<div class="character-slot locked">🔒</div>';
+      }
+      html += '</div></div>'; deckDiv.innerHTML = html;
+      document.querySelectorAll('.character-slot:not(.locked)').forEach(s => s.addEventListener('click', () => s.id === 'leaderSlot' ? promptForLeader() : promptAddToSlot(parseInt(s.dataset.slot))));
+
+      const tagDisplay = document.getElementById('activeTagsDisplay');
+      const tc = getActiveTags(); const atl = Object.entries(tc).filter(([,c])=>c>=2).map(([t,c])=>`${t} (${c})`).join(', ');
+      tagDisplay.innerText = atl ? `Теги: ${atl}` : '';
+
+      const upgDiv = document.getElementById('upgradeContainer');
+      let slotBtns = '';
+      if (unlockedSlots < MAX_DECK_SIZE) slotBtns += `<button class="buySlot" data-slot="${unlockedSlots}">🔓 Слот ${unlockedSlots+1} (${getSlotCost(unlockedSlots)}🌟)</button>`;
+      if (!leaderUnlocked) slotBtns += `<button class="buyLeader">👑 Слот Лидера (5000🌟)</button>`;
+      const bannerLabel = bannerUpgrade === 0 ? 'Улучшение баннеров до Премиума' : 'Улучшение баннеров до VIP';
+      upgDiv.innerHTML = `<div class="upgrade-card"><span>🖐️ Сила клика (${upgrades.clickPower.level})</span><button class="buyUpg" data-type="clickPower">💰 ${getUpgradeCost('clickPower')}</button></div>
+        <div class="upgrade-card"><span>📊 Бонус клика (${upgrades.clickPercent.level}) +${(upgrades.clickPercent.level * 2).toFixed(0)}%</span><button class="buyUpg" data-type="clickPercent">💰 ${getUpgradeCost('clickPercent')}</button></div>
+        <div class="upgrade-card"><span>⏳ Пассивный доход (${upgrades.passiveIncome.level})</span><button class="buyUpg" data-type="passiveIncome">💰 ${getUpgradeCost('passiveIncome')}</button></div>
+        <div class="upgrade-card"><span>⚡ Двойные очки (${upgrades.doublePoints.level})</span><button class="buyUpg" data-type="doublePoints">💰 ${getUpgradeCost('doublePoints')}</button></div>
+        <div class="upgrade-card"><span>🔓 Слоты колоды</span><div class="slot-btns-row">${slotBtns || '✅ Все слоты открыты'}</div></div>
+        <div class="upgrade-card"><span>${bannerLabel}</span>${bannerUpgrade < 2 ? `<button class="buyBannerUpg">💰 ${bannerUpgrade === 0 ? '5000' : '50000'}</button>` : '✅ Максимум'}</div>`;
+      document.querySelectorAll('.buyUpg').forEach(b => b.onclick = () => { if (spendPoints(getUpgradeCost(b.dataset.type))) { upgrades[b.dataset.type].level++; updateUI(); saveGame(); } });
+      document.querySelector('.buySlot')?.addEventListener('click', function() { if (spendPoints(getSlotCost(parseInt(this.dataset.slot)))) { unlockedSlots++; updateUI(); saveGame(); } });
+      document.querySelector('.buyLeader')?.addEventListener('click', () => { if (spendPoints(5000)) { leaderUnlocked = true; updateUI(); saveGame(); } });
+      document.querySelector('.buyBannerUpg')?.addEventListener('click', () => { if (spendPoints(bannerUpgrade === 0 ? 5000 : 50000)) { bannerUpgrade++; updateUI(); saveGame(); } });
+
+      document.querySelectorAll('.banner-tab').forEach(tab => {
+        const tier = parseInt(tab.dataset.tier);
+        tab.classList.remove('active', 'locked');
+        if (tier === bannerUpgrade) tab.classList.add('active');
+        else if (tier > bannerUpgrade) tab.classList.add('locked');
+        tab.onclick = () => { if (tier <= bannerUpgrade) { bannerUpgrade = tier; updateUI(); } };
+        if (tier === 0) tab.innerText = 'Обычный';
+        else if (tier === 1) tab.innerText = bannerUpgrade >= 1 ? 'Премиум' : 'Премиум 🔒';
+        else tab.innerText = bannerUpgrade >= 2 ? 'VIP' : 'VIP 🔒';
+      });
+
+      document.getElementById('bannerContainer').innerHTML = Object.entries(banners).map(([k,v]) => `<div class="banner-card"><span class="banner-info-btn" data-banner="${k}">i</span><h4>${v.name}</h4><div class="banner-buttons"><button class="doPull" data-banner="${k}" data-count="1">1x (${getPullCost(1)}🌟)</button><button class="doPull" data-banner="${k}" data-count="10">11x (${getPullCost(10)}🌟)</button></div></div>`).join('');
+      document.querySelectorAll('.doPull').forEach(b => b.onclick = () => performPull(b.dataset.banner, parseInt(b.dataset.count)));
+      document.querySelectorAll('.banner-info-btn').forEach(b => b.onclick = (e) => { e.stopPropagation(); showBannerInfo(b.dataset.banner); });
+      document.getElementById('collectionStats').innerText = `Всего: ${allCharacters.length} | У вас: ${ownedCharacters.length}`;
+      renderCollection();
+    }
+
+    function renderCollection() {
+      const rf = document.querySelector('#rarityFilterGroup .filter-btn.active')?.dataset.rarity || 'all';
+      const favFilter = document.querySelector('#favFilterBtn')?.classList.contains('active');
+      const banner = banners[currentBannerFilter]; if (!banner) return;
+      let chars = banner.characters.filter(c => rf === 'all' || c.rarity == rf);
+      if (favFilter) chars = chars.filter(c => favorites[c.id]);
+      chars.sort((a, b) => { const ao = ownedCharacters.includes(a.id)?1:0; const bo = ownedCharacters.includes(b.id)?1:0; if (ao !== bo) return bo - ao; if (a.rarity !== b.rarity) return b.rarity - a.rarity; return a.name.localeCompare(b.name); });
+      document.getElementById('collectionList').innerHTML = chars.map(c => {
+        const owned = ownedCharacters.includes(c.id), lv = getCharLevel(c.id), cnt = getCharUpgradeCount(c.id);
+        const maxLvl = getCharMaxLevel(c.id); const need = lv < maxLvl ? getUpgradeCountNeeded(c.id, lv+1) : null;
+        const canUp = owned && need && cnt >= need && lv < maxLvl;
+        const cost = UPGRADE_COST[RARITY_NAMES[c.rarity]] || 5000;
+        const bonus = getCharBonus(c.id), pBonus = bonus * 0.3; const border = getCharBorderClass(c.id);
+        const effectiveRarity = getCharEffectiveRarity(c.id);
+        const isFav = favorites[c.id];
+        return `<div class="collection-item" style="opacity:${owned?1:0.3};cursor:${owned?'pointer':'default'};" data-id="${c.id}"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;"><div class="collection-img-wrapper"><img src="${getCharImage(c, lv)}" class="collection-img" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2290%22><rect fill=%22%23444%22 width=%2260%22 height=%2290%22/></svg>'">${border?`<div class="collection-img-border ${border}"></div>`:''}</div><div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;"><span style="word-break:break-word;">${c.name} <span class="rarity-badge">${RARITY_NAMES[effectiveRarity]}</span><span class="favorite-star ${isFav?'active':''}" data-fid="${c.id}">${isFav?'⭐':'☆'}</span></span><span style="font-size:0.75rem;color:#ccc;">${c.tags ? c.tags.map(t => `<span class="tag-badge">${t}</span>`).join(' ') : ''} Ур.${lv} (${cnt}/${need||'-'})</span></div></div><div class="collection-stats-row"><span style="font-size:0.8rem;">🔨+${bonus.toFixed(1)}</span><span style="font-size:0.8rem;">⏳+${pBonus.toFixed(1)}</span>${canUp ? `<button class="upgradeChar" data-id="${c.id}">⬆️ Улучшить (${cost}🌟)</button>` : (lv>=maxLvl&&owned?'✅ Макс.':'')}</div></div>`;
+      }).join('');
+      document.querySelectorAll('.collection-item[data-id]').forEach(el => el.addEventListener('click', function(e) { if (e.target.tagName === 'BUTTON' || e.target.classList.contains('favorite-star')) return; showCardViewer(parseInt(this.dataset.id)); }));
+      document.querySelectorAll('.favorite-star').forEach(star => {
+        star.addEventListener('click', (e) => { e.stopPropagation(); const id = parseInt(star.dataset.fid); favorites[id] = !favorites[id]; saveGame(); renderCollection(); });
+      });
+      document.querySelectorAll('.upgradeChar').forEach(b => b.onclick = (e) => { e.stopPropagation(); const id = parseInt(b.dataset.id); const cost = UPGRADE_COST[RARITY_NAMES[getCharById(id).rarity]] || 5000; const lv = getCharLevel(id); const cnt = getCharUpgradeCount(id); const need = getUpgradeCountNeeded(id, lv+1); if (cnt < need) { alert(`Недостаточно дубликатов! Нужно ${need}, есть ${cnt}`); return; } if (spendPoints(cost)) { characterLevels[id] = lv + 1; characterUpgradeCounts[id] = cnt - need; updateUI(); saveGame(); } });
+    }
+
+    function setupFilters() {
+      const rd = document.getElementById('rarityFilterGroup');
+      rd.innerHTML = '<button class="filter-btn active" data-rarity="all">Все</button>' + Object.entries(RARITY_NAMES).map(([k,v]) => `<button class="filter-btn" data-rarity="${k}">${v}</button>`).join('') + '<button class="filter-btn" id="favFilterBtn">⭐ Избранное</button>';
+      rd.querySelectorAll('.filter-btn').forEach(b => b.onclick = function() {
+        if (this.id === 'favFilterBtn') { this.classList.toggle('active'); } else { rd.querySelectorAll('.filter-btn').forEach(x => { if (x.id !== 'favFilterBtn') x.classList.remove('active'); }); this.classList.add('active'); document.getElementById('favFilterBtn').classList.remove('active'); }
+        renderCollection();
+      });
+      document.getElementById('bannerSelector').innerHTML = Object.entries(banners).map(([k,v]) => `<button class="bannerSelBtn" data-banner="${k}">${v.name}</button>`).join(' ');
+      document.querySelectorAll('.bannerSelBtn').forEach(b => b.onclick = function() { currentBannerFilter = this.dataset.banner; updateUI(); });
+    }
+
+    function switchTab(tab) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(tab+'Screen').classList.add('active'); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.querySelector(`[data-tab="${tab}"]`)?.classList.add('active'); if (tab === 'collection') updateUI(); }
+    function restartPassiveInterval() { if (passiveInterval) clearInterval(passiveInterval); passiveInterval = setInterval(() => { if (calculatePassivePerSecond() > 0) { playerPoints += calculatePassivePerSecond(); updateUI(); } }, 1000); }
+
+    // Preload images
+    async function preloadAllImages() {
+      const usedPaths = new Set();
+      allCharacters.forEach(c => {
+        usedPaths.add(c.img);
+        if (c.imgLvl2) usedPaths.add(c.imgLvl2);
+        if (c.imgLvl3) usedPaths.add(c.imgLvl3);
+        for (let i = 4; i <= 9; i++) { if (c[`imgLvl${i}`]) usedPaths.add(c[`imgLvl${i}`]); }
+      });
+      const allPaths = [...usedPaths];
+      const total = allPaths.length;
+      let loaded = 0;
+      const fill = document.getElementById('loadingFill');
+      const text = document.getElementById('loadingText');
+      for (const path of allPaths) {
+        await new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => { loaded++; fill.style.width = `${(loaded/total)*100}%`; text.innerText = `Загрузка: ${loaded}/${total}`; resolve(); };
+          img.onerror = () => { loaded++; fill.style.width = `${(loaded/total)*100}%`; resolve(); };
+          img.src = path;
+        });
+      }
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.querySelector('.game-container').style.display = '';
+    }
+
+    document.getElementById('clickAreaFull').addEventListener('click', handleClick);
+    document.getElementById('toggleUIBtn').addEventListener('click', () => { document.getElementById('deckPanel').classList.toggle('hidden'); document.getElementById('topBar').classList.toggle('hidden'); });
+    document.getElementById('settingsTopBtn').addEventListener('click', showSettings);
+    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+    window.addEventListener('beforeunload', () => saveGame());
+
+    async function init() {
+      await preloadAllImages();
+      initState();
+      loadGame();
+      setupFilters();
+      updateUI();
+      restartPassiveInterval();
+      startBackgroundRotation();
+      setInterval(() => saveGame(), 120000);
+      document.getElementById('homeScreen').classList.add('active');
+    }
+    init();
+  })();
+</script>
+</body>
+</html>
